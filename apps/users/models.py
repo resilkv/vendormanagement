@@ -30,11 +30,13 @@ class UserManager(BaseUserManager):
 
 class Vendor(AbstractBaseUser):
 
-    email = models.EmailField(_('email'), max_length=255, unique=True, db_index=True)
+    email = models.EmailField(_('email'), max_length=255,db_index=True)
+    name = models.CharField(_('name'), max_length=300, blank=True, null=True, db_index=True)
     username = models.CharField(_('username'), max_length=300, blank=True, null=True, db_index=True)
     phone_number = models.CharField(_("Phone_Number"), max_length=50, blank=True, null=True, db_index=True)
     password = models.CharField(_('password'), max_length=100, blank=True, null=True)
-    address = models.TextField(_('address'), max_length=255, unique=True, editable=False, blank=True, null=True)
+    address = models.TextField(_('address'), editable=False, blank=True, null=True)
+    contact_details = models.TextField(_('contact_details'), editable=False, blank=True, null=True)
     vendor_code = models.CharField(_('vendor_code'), blank=True, null=True,max_length=255)
     on_time_delivery_rate = models.FloatField(_('on_time_delivery_rate'), blank=True, null=True)
     quality_rating_avg = models.FloatField(_('quality_rating_avg'), blank=True, null=True)
@@ -58,3 +60,5 @@ class Vendor(AbstractBaseUser):
 
     def has_module_perms(self, app_label):
         return True
+    
+    
