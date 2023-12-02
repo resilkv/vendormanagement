@@ -2,7 +2,8 @@ from rest_framework import serializers
 from django.utils import timezone
 from apps.orders.models import HistoricalPerformance, PurchaseOrder
 from apps.users.models import Vendor
-
+from django.db.models import F
+from django.db.models import Avg
 
 class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
     
@@ -15,10 +16,12 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
     quality_rating = serializers.FloatField(required=False)
     issue_date = serializers.DateTimeField(required=False)
     delivery_date = serializers.CharField(required=False)
+    has_issue = serializers.BooleanField(default=False)
     
     class Meta:
         model = PurchaseOrder
-        fields= ['po_id','vendor_id','po_number','vendor_id','order_date','items','quantity','status','issue_date','quality_rating','delivery_date']
+        fields= ['po_id','vendor_id','po_number','vendor_id','order_date','items','quantity','status','issue_date',
+                 'quality_rating','delivery_date','has_issue']
         
     extra_kwargs = {
         'po_id': {'help_text': 'Only when editing a Purchase Order'},
@@ -51,36 +54,28 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
         instance.quantity = validated_data.get('quantity', instance.quantity)
         instance.status = validated_data.get('status', instance.status)
         instance.issue_date = validated_data.get('issue_date', instance.issue_date)
+        instance.has_issue = validated_data.get('has_issue',False)
         if validated_data.get('status') == 'completed':
             
             instance.completed_date = timezone.now()
             instance.quality_rating = validated_data.get('quality_rating',None)
+            instance.save()
+            total_po_count = PurchaseOrder.objects.filter(vendor=instance.vendor, completed_date__lte=F('delivery_date')).count()
+            total_po = PurchaseOrder.objects.filter(vendor=instance.vendor,status='completed')
+            historical_performance = HistoricalPerformance.objects.get(vendor=instance.vendor)
             
-     
+            historical_performance.on_time_delivery_rate = total_po_count/total_po
+            if validated_data.get('quality_rating',None) is not None:
+                average_quality_rating = PurchaseOrder.objects.aggregate(vendor=instance.vendor,avg_quality_rating=Avg('quality_rating'))
+                historical_performance.quality_rating_avg = average_quality_rating
+            
+            total_fullfilment_with_issue = PurchaseOrder.objects.filter(vendor=instance.vendor,status='completed',has_issue=True)
+            historical_performance.fulfillment_rate = total_fullfilment_with_issue/total_po
+            
+            historical_performance.save()
         instance.save()
-        
-        if old_status != instance.status:
-            self.update_fulfillment_rate(instance.vendor)
 
         return instance
-    
-    @staticmethod
-    def update_fulfillment_rate(vendor):
-        total_po_count = PurchaseOrder.objects.filter(vendor=vendor).count()
-        fulfilled_po_count = PurchaseOrder.objects.filter(
-            vendor=vendor,
-            status='completed',
-            has_issues=False  
-        ).count()
-
-        fulfillment_rate = 0.0
-        if total_po_count > 0:
-            fulfillment_rate = fulfilled_po_count / total_po_count
-
-        HistoricalPerformance.objects.update_or_create(
-            vendor=vendor,
-            defaults={'fulfillment_rate': fulfillment_rate}
-        )
     
 class DeletePurchaseOrderSerializer(serializers.ModelSerializer):
 
@@ -106,32 +101,10 @@ class PurchaseOrderAcknowledgeSerializer(serializers.ModelSerializer):
         instance.save()
         if instance.issue_date and instance.acknowledgment_date:
             time_difference = (instance.acknowledgment_date - instance.issue_date).total_seconds()
+            historical_performance = HistoricalPerformance.objects.get(vendor=instance.vendor)
+            historical_performance.average_response_time = time_difference
+            historical_performance.save()
       
-            self.update_average_response_time(instance.vendor, time_difference)
         return instance
     
-    @staticmethod
-    def update_average_response_time(vendor, time_difference):
-      
-        current_average_response_time = HistoricalPerformance.objects.filter(
-            vendor=vendor,
-            date=timezone.now()
-        ).values('average_response_time').first()
-        
-        if not current_average_response_time:
-            HistoricalPerformance.objects.create(
-                vendor=vendor,
-                date=timezone.now(),
-                average_response_time=time_difference
-            )
-        else:
-            total_time = current_average_response_time['average_response_time'] + time_difference
-            total_orders = PurchaseOrder.objects.filter(
-                vendor=vendor,
-                status='completed',
-                acknowledgment_date__isnull=False
-            ).count()
-
-            new_average_response_time = total_time / total_orders
-            
-        HistoricalPerformance.objects.filter(vendor=vendor,date=timezone.now()).update(average_response_time=new_average_response_time)
+ 
