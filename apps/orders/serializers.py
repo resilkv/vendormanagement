@@ -14,10 +14,11 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
     status = serializers.CharField(required=False)
     quality_rating = serializers.FloatField(required=False)
     issue_date = serializers.DateTimeField(required=False)
+    delivery_date = serializers.CharField(required=False)
     
     class Meta:
         model = PurchaseOrder
-        fields= ['po_id','vendor_id','po_number','vendor_id','order_date','items','quantity','status','issue_date','quality_rating']
+        fields= ['po_id','vendor_id','po_number','vendor_id','order_date','items','quantity','status','issue_date','quality_rating','delivery_date']
         
     extra_kwargs = {
         'po_id': {'help_text': 'Only when editing a Purchase Order'},
@@ -52,8 +53,9 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
         instance.issue_date = validated_data.get('issue_date', instance.issue_date)
         if validated_data.get('status') == 'completed':
             
-            instance.delivery_date = timezone.now()
-            instance.quality_rating = validated_data.get('quality_rating','')
+            instance.completed_date = timezone.now()
+            instance.quality_rating = validated_data.get('quality_rating',None)
+            
      
         instance.save()
         
@@ -77,7 +79,6 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
 
         HistoricalPerformance.objects.update_or_create(
             vendor=vendor,
-            date=timezone.now(),
             defaults={'fulfillment_rate': fulfillment_rate}
         )
     

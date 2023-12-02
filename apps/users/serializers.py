@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.orders.models import HistoricalPerformance
 
 from apps.users.models import Vendor
 
@@ -29,6 +30,7 @@ class CreateorUpdateCreateVendorSerializer(serializers.ModelSerializer):
         instance.address = validated_data.get('address')
         instance.vendor_code = validated_data.get('vendor_code')
         instance.save()
+        HistoricalPerformance(vendor=instance).save()
         return instance  
     
     def update(self, instance, validated_data):
