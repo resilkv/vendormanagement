@@ -46,8 +46,6 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         
-        old_status = instance.status 
-        instance.vendor = validated_data.get('vendor_id', instance.vendor)
         instance.po_number = validated_data.get('po_number', instance.po_number)
         instance.order_date = validated_data.get('order_date', instance.order_date)
         instance.items = validated_data.get('items', instance.items)
@@ -61,15 +59,20 @@ class CreateorUpdatePurchaseOrderSerializer(serializers.ModelSerializer):
             instance.quality_rating = validated_data.get('quality_rating',None)
             instance.save()
             total_po_count = PurchaseOrder.objects.filter(vendor=instance.vendor, completed_date__lte=F('delivery_date')).count()
-            total_po = PurchaseOrder.objects.filter(vendor=instance.vendor,status='completed')
+            total_po = PurchaseOrder.objects.filter(vendor=instance.vendor,status='completed').count()
+           
             historical_performance = HistoricalPerformance.objects.get(vendor=instance.vendor)
+
             
             historical_performance.on_time_delivery_rate = total_po_count/total_po
             if validated_data.get('quality_rating',None) is not None:
-                average_quality_rating = PurchaseOrder.objects.aggregate(vendor=instance.vendor,avg_quality_rating=Avg('quality_rating'))
-                historical_performance.quality_rating_avg = average_quality_rating
+                average_quality_rating = PurchaseOrder.objects.values('vendor').annotate(avg_quality_rating=Avg('quality_rating'))
+                result_for_specific_vendor = average_quality_rating.filter(vendor=instance.vendor).order_by('vendor').first()
+                avg_quality_rating_for_specific_vendor = result_for_specific_vendor.get('avg_quality_rating', 0.0)
+                historical_performance.quality_rating_avg = avg_quality_rating_for_specific_vendor
             
-            total_fullfilment_with_issue = PurchaseOrder.objects.filter(vendor=instance.vendor,status='completed',has_issue=True)
+            total_fullfilment_with_issue = PurchaseOrder.objects.filter(vendor=instance.vendor,status='completed',has_issues=True).count()
+            
             historical_performance.fulfillment_rate = total_fullfilment_with_issue/total_po
             
             historical_performance.save()

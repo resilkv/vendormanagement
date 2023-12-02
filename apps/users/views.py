@@ -173,9 +173,10 @@ class GetVendorPerformance(generics.ListAPIView):
 
     @swagger_auto_schema(pagination_class=RestPagination, tags=["Vendor Performace"], manual_parameters=[vendor_id])
     def get(self, request, *args, **kwargs):
+        
         queryset = self.filter_queryset(self.get_queryset())
         instance_id = request.GET.get('vendor_id', None)
-        queryset = queryset.filter(pk=instance_id)
+        queryset = queryset.filter(vendor_id=instance_id)
 
         page = self.paginate_queryset(queryset)
         serializer = self.serializer_class(page, many=True,context={'request': request})

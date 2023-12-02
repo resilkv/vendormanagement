@@ -46,7 +46,8 @@ class Vendor(AbstractBaseUser):
     is_superuser = models.BooleanField(default=False)
     is_active = models.BooleanField(_('Is Active'), default=True)
     is_staff = models.BooleanField(_('Is Staff'), default=False)
-
+    
+    
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
@@ -60,5 +61,7 @@ class Vendor(AbstractBaseUser):
 
     def has_module_perms(self, app_label):
         return True
-    
+    def __str__(self):
+        return str(self.pk)
+
     
